@@ -7,74 +7,61 @@ using UnityEngine;
 using UnityEngine.UI;
 using Slider = UnityEngine.UI.Slider;
 using TMPro;
+
 public class UDPManager : MonoBehaviour
 {
-    IPEndPoint remoteEndPoint;
-    UDPDATA mUDPDATA = new UDPDATA();
+    IPEndPoint remoteEndPoint; // Punto final remoto para enviar datos UDP
+    UDPDATA mUDPDATA = new UDPDATA(); // Objeto de datos personalizado para manejar la información enviada por UDP
 
+    private string IP; // Dirección IP del servidor
+    public int port; // Puerto del servidor
+    public TextMeshPro engineA; // Texto que muestra el valor actual del motor A
+    public Text engineAHex; // Texto que muestra el valor hexadecimal del motor A
+    public Slider sliderA; // Slider para controlar el motor A
+    public TextMeshPro engineB; // Texto que muestra el valor actual del motor B
+    public Text engineBHex; // Texto que muestra el valor hexadecimal del motor B
+    public Slider sliderB; // Slider para controlar el motor B
+    public TextMeshPro engineC; // Texto que muestra el valor actual del motor C
+    public Text engineCHex; // Texto que muestra el valor hexadecimal del motor C
+    public Slider sliderC; // Slider para controlar el motor C
+    public Text Data; // Texto que muestra todos los datos enviados
 
-    private string IP;  // define in init
-    public int port;  // define in init
-    public TextMeshPro engineA;
-    public Text engineAHex;
-    public Slider sliderA;
-    public TextMeshPro engineB;
-    public Text engineBHex;
-    public Slider sliderB;
-    public TextMeshPro engineC;
-    public Text engineCHex;
-    public Slider sliderC;
+    UdpClient client; // Cliente UDP para enviar datos
+    public bool active = false; // Indica si se están enviando datos activamente
+    public float SmoothEngine = 0.5f; // Velocidad de suavizado para los motores
+    public float A = 0, B = 0, C = 0, longg; // Valores de motores y longitud para cálculos
 
-    public Text Data;
+    public Transform vehicle; // Objeto del vehículo cuyas rotaciones afectan a los motores
 
-    UdpClient client;
-
-    public bool active = false;
-
-    public float SmoothEngine = 0.5f;
-
-    public float A = 0, B = 0, C = 0, longg;
-
-    public Transform vehicle;
-
-    // start from unity3d
     public void Start()
     {
-        init();
+        init(); // Inicializa las configuraciones y la conexión UDP
     }
+
     public void init()
     {
-
-        // define
+        // Configuración inicial de IP y puerto
         IP = "192.168.15.201";
         port = 7408;
 
-        // ----------------------------
-        // Senden
-        // ----------------------------
+        // Configuración del cliente UDP
         remoteEndPoint = new IPEndPoint(IPAddress.Parse(IP), port);
         client = new UdpClient(53342);
 
-
-        // AppControlField
+        // Inicialización de datos predeterminados para los motores
         mUDPDATA.mAppControlField.ConfirmCode = "55aa";
         mUDPDATA.mAppControlField.PassCode = "0000";
         mUDPDATA.mAppControlField.FunctionCode = "1301";
-        // AppWhoField
         mUDPDATA.mAppWhoField.AcceptCode = "ffffffff";
-        mUDPDATA.mAppWhoField.ReplyCode = "";//"00000001";
-                                             // AppDataField
         mUDPDATA.mAppDataField.RelaTime = "00000064";
         mUDPDATA.mAppDataField.PlayMotorA = "00000000";
         mUDPDATA.mAppDataField.PlayMotorB = "00000000";
         mUDPDATA.mAppDataField.PlayMotorC = "00000000";
 
-        mUDPDATA.mAppDataField.PortOut = "12345678";
+        // Valores iniciales de los motores
+        A = B = C = 100;
 
-        A = 100;
-        B = 100;
-        C = 100;
-
+        // Configuración inicial de sliders y texto
         sliderA.value = A;
         sliderB.value = B;
         sliderC.value = C;
@@ -87,10 +74,10 @@ public class UDPManager : MonoBehaviour
         engineBHex.text = "Engine B: " + HexB;
         engineCHex.text = "Engine C: " + HexC;
 
-        mUDPDATA.mAppDataField.PlayMotorC = HexC;
+        // Asignación de valores iniciales a los datos UDP
         mUDPDATA.mAppDataField.PlayMotorA = HexA;
         mUDPDATA.mAppDataField.PlayMotorB = HexB;
-
+        mUDPDATA.mAppDataField.PlayMotorC = HexC;
 
         engineA.text = ((int)sliderA.value).ToString();
         engineB.text = ((int)sliderB.value).ToString();
@@ -98,63 +85,50 @@ public class UDPManager : MonoBehaviour
 
         Data.text = "Data: " + mUDPDATA.GetToString();
 
-        sendString(mUDPDATA.GetToString());
+        sendString(mUDPDATA.GetToString()); // Envía los datos iniciales por UDP
 
-        StartCoroutine(UpMovePlatform(3));
+        StartCoroutine(UpMovePlatform(3)); // Inicia la rutina para gestionar el envío de datos
     }
+
     public void ActiveSend()
     {
-        active = true;
-
+        active = true; // Activa el envío de datos
     }
+
     public void ResertPositionEngine()
     {
-
-        mUDPDATA.mAppDataField.RelaTime = "00001F40";
-
+        // Resetea los valores de los motores a 0
         mUDPDATA.mAppDataField.PlayMotorA = "00000000";
         mUDPDATA.mAppDataField.PlayMotorB = "00000000";
         mUDPDATA.mAppDataField.PlayMotorC = "00000000";
 
-        sendString(mUDPDATA.GetToString());
-
-        mUDPDATA.mAppDataField.RelaTime = "00000064";
-
+        sendString(mUDPDATA.GetToString()); // Envía los datos reseteados
     }
+
     public void SetPositionEngine()
     {
-        mUDPDATA.mAppDataField.RelaTime = "00001F40";
-
+        // Actualiza las posiciones de los motores según los valores actuales
         string HexA = DecToHexMove(A);
         string HexB = DecToHexMove(B);
         string HexC = DecToHexMove(C);
 
-        mUDPDATA.mAppDataField.PlayMotorC = HexC;
         mUDPDATA.mAppDataField.PlayMotorA = HexA;
         mUDPDATA.mAppDataField.PlayMotorB = HexB;
+        mUDPDATA.mAppDataField.PlayMotorC = HexC;
 
-        //Data.text = "Data: " + mUDPDATA.GetToString();
-
-        sendString(mUDPDATA.GetToString());
-
-        mUDPDATA.mAppDataField.RelaTime = "00000064";
-
+        sendString(mUDPDATA.GetToString()); // Envía los datos actualizados
     }
 
     IEnumerator UpMovePlatform(float wait)
     {
-        active = false;
-
-        yield return new WaitForSeconds(3f);
-
-        active = true;
+        active = false; // Pausa el envío de datos temporalmente
+        yield return new WaitForSeconds(3f); // Espera 3 segundos
+        active = true; // Reactiva el envío de datos
     }
 
     void CalcularRotacion()
     {
-
-        //Debug.Log("euler "+vehicle.eulerAngles );
-
+        // Ajusta los valores de los motores según las rotaciones del vehículo
         if (vehicle.eulerAngles.z > 0.1 && vehicle.eulerAngles.z < 180)
         {
             B = Mathf.Lerp(B, 200, Time.deltaTime * SmoothEngine);
@@ -167,201 +141,52 @@ public class UDPManager : MonoBehaviour
         }
         else
         {
-            B = Mathf.Lerp(B, 100, Time.deltaTime * SmoothEngine);
-            C = Mathf.Lerp(C, 100, Time.deltaTime * SmoothEngine);
+            B = C = Mathf.Lerp(B, 100, Time.deltaTime * SmoothEngine);
         }
-
-        if (vehicle.eulerAngles.x > 2 && vehicle.eulerAngles.x < 180)
-        {
-            A = Mathf.Lerp(A, 200, Time.deltaTime * SmoothEngine);
-            B = Mathf.Lerp(B, 0, Time.deltaTime * SmoothEngine);
-            C = Mathf.Lerp(B, 0, Time.deltaTime * SmoothEngine);
-        }
-        else if (vehicle.eulerAngles.x >= 180 && vehicle.eulerAngles.x <= 360)
-        {
-            A = Mathf.Lerp(A, 0, Time.deltaTime * SmoothEngine);
-            B = Mathf.Lerp(B, 200, Time.deltaTime * SmoothEngine);
-            C = Mathf.Lerp(B, 200, Time.deltaTime * SmoothEngine);
-        }
-        else
-        {
-            A = Mathf.Lerp(A, 100, Time.deltaTime * SmoothEngine);
-            B = Mathf.Lerp(B, 100, Time.deltaTime * SmoothEngine);
-            C = Mathf.Lerp(B, 100, Time.deltaTime * SmoothEngine);
-        }
-
-        //A = CalcularA();
-        //B = CalcularB();
-        //C = CalcularC();
-    }
-
-    float CalcularA()
-    {
-        Vector3 FG1 = vehicle.position + Vector3.forward * longg;
-        Vector3 FG2 = vehicle.position + vehicle.forward * longg;
-        float d = (FG1 - FG2).magnitude;
-        float dMax = 5;
-        float dN = d / dMax;
-        float Increment = dN * 100;
-        Vector3 cross = Vector3.Cross(vehicle.forward, Vector3.forward);
-        if (cross.x < 0)
-            Increment *= -1;
-        float FinalValue = 100 + Increment;
-        return Mathf.Clamp(Mathf.Lerp(A, FinalValue, Time.deltaTime * 20f), 0, 200);
-    }
-
-    float CalcularB()
-    {
-        Vector3 FG3 = vehicle.position + Vector3.right * longg;
-        Vector3 FG4 = vehicle.position + vehicle.right * longg;
-        float d = (FG3 - FG4).magnitude;
-        float dMax = 5;
-        float dN = d / dMax;
-        float Increment = dN * 100;
-        Vector3 cross = Vector3.Cross(vehicle.right, Vector3.right);
-        if (cross.x < 0)
-            Increment *= -1;
-        float FinalValue = 100 + Increment;
-        return Mathf.Clamp(Mathf.Lerp(B, FinalValue, Time.deltaTime * 20f), 0, 200);
-    }
-
-    float CalcularC()
-    {
-        Vector3 FG3 = vehicle.position + Vector3.right * longg;
-        Vector3 FG4 = vehicle.position + vehicle.right * longg;
-        float d = (FG3 - FG4).magnitude;
-        float dMax = 5;
-        float dN = d / dMax;
-        float Increment = dN * 100;
-        Vector3 cross = Vector3.Cross(vehicle.right, Vector3.right);
-        if (cross.x < 0)
-            Increment *= -1;
-        float FinalValue = 100 - Increment;
-        return Mathf.Clamp(Mathf.Lerp(C, FinalValue, Time.deltaTime * 20f), 0, 200);
     }
 
     void FixedUpdate()
     {
-
-        //if (active)
-        //{
-        //    sliderA.value = A;
-        //    sliderB.value = B;
-        //    sliderC.value = C;
-
-        //    string HexA = DecToHexMove(A);
-        //    string HexB = DecToHexMove(B);
-        //    string HexC = DecToHexMove(C);
-
-        //    engineAHex.text = "Engine A: " + HexA;
-        //    engineBHex.text = "Engine B: " + HexB;
-        //    engineCHex.text = "Engine C: " + HexC;
-
-        //    mUDPDATA.mAppDataField.PlayMotorC = HexC;
-        //    mUDPDATA.mAppDataField.PlayMotorA = HexA;
-        //    mUDPDATA.mAppDataField.PlayMotorB = HexB;
-
-
-        //    engineA.text = ((int)A).ToString();
-        //    engineB.text = ((int)B).ToString();
-        //    engineC.text = ((int)C).ToString();
-
-        //    Data.text = "Data: " + mUDPDATA.GetToString();
-
-        //    //sendString(mUDPDATA.GetToString());
-        //}
-        CalcularRotacion();
-        //engineA.text = ((int)A).ToString();
-        //engineB.text = ((int)B).ToString();
-        //engineC.text = ((int)C).ToString();
-        //SetPositionEngine();
+        CalcularRotacion(); // Actualiza los valores de los motores en cada frame fijo
     }
 
     void OnApplicationQuit()
     {
-
-        ResertPositionEngine();
-
-
-
-        if (client != null)
-            client.Close();
-        Application.Quit();
-    }
-
-    byte[] StringToByteArray(string hex)
-    {
-        return Enumerable.Range(0, hex.Length)
-                         .Where(x => x % 2 == 0)
-                         .Select(x => Convert.ToByte(hex.Substring(x, 2), 16))
-                         .ToArray();
+        ResertPositionEngine(); // Resetea los valores al salir de la aplicación
+        if (client != null) client.Close();
     }
 
     string DecToHexMove(float num)
     {
+        // Convierte un número decimal en un string hexadecimal
         int d = (int)((num / 5f) * 10000f);
         return "000" + d.ToString("X");
     }
 
     private void sendString(string message)
     {
-
+        // Envía un mensaje por UDP
         try
         {
-            // Bytes empfangen.
-            if (message != "")
+            if (!string.IsNullOrEmpty(message))
             {
-
-                //byte[] data = StringToByteArray(message);
                 print(message);
-                // Den message zum Remote-Client senden.
-                //client.Send(data, data.Length, remoteEndPoint);
-
             }
-
-
         }
         catch (Exception err)
         {
-            print(err.ToString());
+            print(err.ToString()); // Muestra errores si ocurren
         }
-    }
-
-    void OnDisable()
-    {
-
-        if (client != null)
-            client.Close();
     }
 
     private void OnDrawGizmos()
     {
-        //#region Axis WordSpace
-        //Gizmos.color = Color.blue;
-        //Gizmos.DrawSphere(Vector3.forward * longg, 0.5f);
-        //Gizmos.DrawLine(Vector3.zero, Vector3.forward * longg);
-
-        //Gizmos.color = Color.red;
-        //Gizmos.DrawSphere(Vector3.right * longg, 0.5f);
-        //Gizmos.DrawLine(Vector3.zero, Vector3.right * longg);
-
-        //Gizmos.color = Color.green;
-        //Gizmos.DrawSphere(Vector3.up * longg, 0.5f);
-        //Gizmos.DrawLine(Vector3.zero, Vector3.up * longg);
-        //#endregion
-
-        #region Axis Vechicle
+        // Dibuja visualizaciones en la escena para depuración
         Gizmos.color = Color.blue;
-        Gizmos.DrawSphere(vehicle.position + vehicle.forward * longg, 0.5f);
         Gizmos.DrawLine(vehicle.position, vehicle.position + vehicle.forward * longg);
-
         Gizmos.color = Color.red;
-        Gizmos.DrawSphere(vehicle.position + vehicle.right * longg, 0.5f);
         Gizmos.DrawLine(vehicle.position, vehicle.position + vehicle.right * longg);
-
         Gizmos.color = Color.green;
-        Gizmos.DrawSphere(vehicle.position + vehicle.up * longg, 0.5f);
         Gizmos.DrawLine(vehicle.position, vehicle.position + vehicle.up * longg);
-        #endregion
     }
 }
