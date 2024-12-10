@@ -19429,11 +19429,11 @@ MonoBehaviour:
   sliderC: {fileID: 0}
   Data: {fileID: 0}
   active: 0
-  SmoothEngine: 0.5
-  A: 0
+  SmoothEngine: 7.5
+  A: 100
   B: 100
-  C: 0
-  longg: 7
+  C: 100
+  longg: 3
   vehicle: {fileID: 4810912517534767552}
 --- !u!1 &8253035484776907901
 GameObject:
